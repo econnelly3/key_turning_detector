@@ -2,7 +2,7 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 
-#define HISTORY_SIZE 500  // Store ~5 seconds of history (assuming 10ms loop delay)
+#define HISTORY_SIZE 400  // Store ~5 seconds of history (assuming 10ms loop delay)
 #define MAX_DEVIATION 20.0
 #define MIN_X_RANGE 80.0  // Require at least 160° of rotation
 
@@ -84,15 +84,15 @@ void loop() {
 bool checkXRangeAndYZDuringRotation() {
     if (!historyFull && historyIndex < 2) return false;  // Not enough data
 
+    unsigned long minTime = millis() - 5000;  // Only check last 5 seconds
+
     float minX = 1000.0, maxX = -1000.0;
     unsigned long minXTime = 0, maxXTime = 0;
 
-    unsigned long minTime = millis() - 5000;  // Only check last 5 seconds
-
+    // Find min and max X angles within last 5 seconds
     for (int i = 0; i < HISTORY_SIZE; i++) {
         AngleHistory record = history[i];
-
-        if (record.timestamp < minTime) continue;  // Ignore old data
+        if (record.timestamp < minTime) continue;
 
         if (record.angleX < minX) {
             minX = record.angleX;
@@ -105,23 +105,39 @@ bool checkXRangeAndYZDuringRotation() {
     }
 
     float rangeX = maxX - minX;
-    Serial.print("MaxX-MinX: "); Serial.println(rangeX);
+    Serial.print("X Rotation Range: "); Serial.println(rangeX);
 
-    if (rangeX < MIN_X_RANGE) {
-        return false;  // Not enough X movement
+    // Ensure minX (start) occurs before maxX (peak) indicating a proper clockwise motion
+    if (minXTime >= maxXTime || rangeX < MIN_X_RANGE) {
+        Serial.println("No clear clockwise rotation detected.");
+        return false;
     }
 
-    // Now that we have minXTime and maxXTime, check Y/Z range within that exact period
+    // Now check for the return motion (counterclockwise) from maxX back down near minX
+    float returnPoint = maxX - (rangeX * 0.7);  // Should return at least 70% back
+    unsigned long returnTime = 0;
+
+    for (int i = 0; i < HISTORY_SIZE; i++) {
+        AngleHistory record = history[i];
+        if (record.timestamp > maxXTime && record.angleX < returnPoint) {
+            returnTime = record.timestamp;
+            break;
+        }
+    }
+
+    if (returnTime == 0) {
+        Serial.println("No counterclockwise return detected.");
+        return false;
+    }
+
+    // Now that clockwise & counterclockwise are detected, check Y and Z deviations during the entire rotation
     float minY = 1000.0, maxY = -1000.0;
     float minZ = 1000.0, maxZ = -1000.0;
-
-    unsigned long lowerBound = min(minXTime, maxXTime);
-    unsigned long upperBound = max(minXTime, maxXTime);
 
     for (int i = 0; i < HISTORY_SIZE; i++) {
         AngleHistory record = history[i];
 
-        if (record.timestamp < lowerBound || record.timestamp > upperBound) continue;  // Ignore data outside X rotation window
+        if (record.timestamp < minXTime || record.timestamp > returnTime) continue;
 
         if (record.angleY < minY) minY = record.angleY;
         if (record.angleY > maxY) maxY = record.angleY;
@@ -132,8 +148,15 @@ bool checkXRangeAndYZDuringRotation() {
     float rangeY = maxY - minY;
     float rangeZ = maxZ - minZ;
 
-    Serial.print("MaxY-MinY: "); Serial.print(rangeY);
-    Serial.print("  MaxZ-MinZ: "); Serial.println(rangeZ);
+    Serial.print("Y Deviation: "); Serial.print(rangeY);
+    Serial.print("  Z Deviation: "); Serial.println(rangeZ);
 
-    return (rangeY <= MAX_DEVIATION && rangeZ <= MAX_DEVIATION);
+    bool validYZ = (rangeY <= MAX_DEVIATION && rangeZ <= MAX_DEVIATION);
+    if (!validYZ) {
+        Serial.println("Invalid Y/Z deviation.");
+        return false;
+    }
+
+    Serial.println("Valid clockwise-then-counterclockwise key turn detected.");
+    return true;
 }
