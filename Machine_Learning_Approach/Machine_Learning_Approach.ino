@@ -6,10 +6,11 @@
 Adafruit_MPU6050 mpu;
 Eloquent::ML::Port::RandomForest model;
 
-const int WINDOW_SIZE = 70;  // Match the window size used in training
+const int WINDOW_SIZE = 150;  // Match the window size used in training
 float window[WINDOW_SIZE * 3];  // Stores last 50 readings (X, Y, Z)
 int windowIndex = 0;  // Track where to insert new data
 bool windowFull = false;  // Track if we have enough data to predict
+const int LED_PIN = 4;  // LED to indicate a valid key turn
 
 void setup() {
     Serial.begin(115200);
@@ -22,6 +23,10 @@ void setup() {
     }
     
     Serial.println("MPU6050 detected. System ready.");
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
+
+
 }
 
 void loop() {
@@ -49,6 +54,12 @@ void loop() {
 
         if (prediction == 1) {
             Serial.println("⚠️ Key Turn Detected!");
+            digitalWrite(LED_PIN, HIGH);
+            //delay(10);
+        }
+        else{
+          digitalWrite(LED_PIN, LOW);
+
         }
     }
 

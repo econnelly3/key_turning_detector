@@ -1,6 +1,6 @@
 import pandas as pd
 
-csv_path = 'Training_Model/Labeled Data V0.csv'
+csv_path = 'Training_Data_R1.csv'
 
 # 1) Print the file path and working directory
 import os
@@ -29,8 +29,8 @@ def create_windows(data, window_size, step_size):
 
         # Flatten angles
         feature_vector = window[['angleX', 'angleY', 'angleZ']].values.flatten()
-        # Label = 1 if any row is 1
-        label = 1 if window['label'].max() == 1 else 0
+        # Label = 1 if majority of labels in window are 1
+        label = 1 if window['label'].sum() > (window_size / 2) else 0
 
         windows.append(feature_vector)
         labels.append(label)
@@ -38,7 +38,7 @@ def create_windows(data, window_size, step_size):
     return windows, labels
 
 # 5) Create windows
-X, y = create_windows(df, window_size=70, step_size=25)
+X, y = create_windows(df, window_size=120, step_size=25)
 
 print(f"\nFinal window count = {len(X)}")
 print(pd.Series(y).value_counts())

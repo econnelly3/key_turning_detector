@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-df = pd.read_csv(r'Training_Model\Labeled Data V0.csv', header=0)
+df = pd.read_csv(r'raw data\Labeled Data V0.csv', header=0)
 
 plt.figure(figsize=(12, 5))
 plt.plot(df.index, df['angleX'], label='Angle X')
